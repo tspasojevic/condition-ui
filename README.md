@@ -2,6 +2,18 @@
 
 This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 9.1.7.
 
+## Development 
+Code for generating component to your custom module within library is:
+ng generate component --project <custom_module_name> <component_name>
+
+The best practice is to separate pages and components in your custom module so you could add a path when generating new Angular component like:
+
+ng generate component --project <custom_module_name> pages/<page_name>
+where pages/ is a folder within your generated page component would be and components/ is a folder within your generated component would be.
+
+Code for generating service to your custom module within the library is:
+ng generate service --project <custom_module_name> <service_name>
+
 ## Development server
 
 Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The app will automatically reload if you change any of the source files.

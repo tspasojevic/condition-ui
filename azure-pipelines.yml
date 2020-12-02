@@ -1,0 +1,91 @@
+variables:
+- group: common
+
+- name: imageRepository
+  value: 'registry.see.asseco.com/ucbhu/do-ucbhu-ui'
+
+- name: moduleName
+  value: 'do-ucbhu-ui'
+
+- name: buildContextFolder
+  value: '.'
+
+- name: dockerfilePath
+  value: 'Dockerfile'
+
+- name: cacheVolumes
+  value: |
+    /opt/cache/node_modules/do-ucbhu-ui:/source/node_modules
+
+pool: 'Digital'
+
+steps:
+- task: DockerAdvanced@0
+  displayName: 'COMMIT_linter'
+  inputs:
+    image: 'registry.see.asseco.com/tools/angular-module-builder:9.0'
+    dockerRegistryEndpoint: harbor
+    commands: |
+      npm run lint
+
+- task: DockerAdvanced@0
+  displayName: 'COMMIT_install'
+  inputs:
+    image: 'registry.see.asseco.com/tools/angular-module-builder:9.0'
+    dockerRegistryEndpoint: harbor
+    commands: |
+      npm install --no-progress --loglevel=warn
+      npm update --dev --no-progress --loglevel=warn
+    volumes: |
+      $(cacheVolumes)
+
+- task: DockerAdvanced@0
+  displayName: 'COMMIT_generate_version'
+  inputs:
+    image: 'registry.see.asseco.com/tools/image-tagger'
+    dockerRegistryEndpoint: harbor
+    envVars: |
+      TAGGER_VERSION=v2
+      GITHUB_TOKEN=$(githubToken)
+
+- script: |
+    echo -e "\nCOPY --chown=1001:0 .version /" >> $(dockerfilePath)
+  displayName: 'COMMIT_tag_version'
+
+- task: DockerAdvanced@0
+  displayName: 'COMMIT_NPM_publish'
+  inputs:
+    image: 'registry.see.asseco.com/tools/angular-module-builder:9.0'
+    dockerRegistryEndpoint: harbor
+    commands: |
+      npm-cli-login -s @privateNPM -r $(npmPackageRepo) -u $(npmUsername) -p $NPM_PASSWORD -e $(npmEmail)
+      ng build --prod $(moduleName)
+      cp -R projects/do-ucbhu-ui/src/lib/assets dist/do-ucbhu-ui/assets
+      npm run publish
+    envVars: |
+      NPM_PASSWORD=$(npmPassword)
+    volumes: |
+      $(cacheVolumes)
+
+- task: DockerAdvanced@0
+  displayName: 'COMMIT_build'
+  inputs:
+    image: 'registry.see.asseco.com/tools/angular-module-builder:9.0'
+    dockerRegistryEndpoint: harbor
+    commands: |
+      ng build $(moduleName)
+    volumes: |
+      $(cacheVolumes)
+
+- task: DockerAdvanced@0
+  displayName: 'COMMIT_publish'
+  inputs:
+    action: BuildAndPush
+    context: $(buildContextFolder)
+    image: $(imageRepository)
+    dockerfile: $(dockerfilePath)
+    dockerRegistryEndpoint: harbor
+
+- script: |
+    docker rmi $(imageRepository):$(cat .version)
+  displayName: 'COMMIT_cleanup'
